@@ -23,6 +23,9 @@ files for bash. The folder where I keep all my dotfiles is `~/etc`.
 Or there is also a [package](https://aur.archlinux.org/packages/jinstall-git)
 for ArchLinux.
 
+You will also need to install [pdmenu](https://joeyh.name/code/pdmenu/), which
+is used for the text-based UI.
+
 ## Usage
 
 **jinstall** is a text-based program meant to be used in a terminal. Without
