@@ -70,7 +70,7 @@ def generate_menu(dirpath):
     dir = os.path.split(dirpath)[1]
     menu = "menu:{0}:{0}\n".format(dir)
 
-    install_filepath = os.path.join(dirpath, "Install")
+    install_filepath = os.path.join(dirpath, "Jinstall")
     with open(install_filepath) as f:
         for line in f:
             cmd = line.strip().split(':', maxsplit=1)
@@ -88,7 +88,7 @@ def main():
             action = "store_true")
     args = parser.parse_args()
 
-    # determine the Install file
+    # determine the Jinstall file
     dirpath = os.path.realpath(args.dir)
 
     menu_content = generate_menu(dirpath)
