@@ -2,7 +2,8 @@
 
 ## What it jinstall?
 
-**jinstall** is an automated text-based file installer.
+**jinstall** is an automated text-based file installer. It is the perfect tool
+for easily installing your dotfiles!
 
 From a repository of files (typically put under version control) and according
 to rules (described in `Jinstall` files), **jinstall** creates links to those
@@ -14,7 +15,7 @@ files where you want them to be.
 See the demo below of **jinstall** in action when installing my configuration
 files for bash. The folder where I keep all my dotfiles is `~/etc`.
 
-![jinstall demo](https://joel.porquet.org/cgit/cgit.cgi/jinstall.git/plain/docs/demo.gif)
+![jinstall demo](docs/demo.gif)
 
 ## Installation
 
