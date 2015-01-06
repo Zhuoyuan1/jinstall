@@ -118,5 +118,6 @@ And voilà! Now, you can run **jinstall** and install your dotfiles easily!
 # Mirrors
 
 This project is mirrored on:
+
 * [github](https://github.com/joel-porquet/jinstall)
-* [my cgit](https://joel.porquet.org/cgit/cgit.cgi/jinstall.git/about/).
+* [my cgit](https://joel.porquet.org/cgit/cgit.cgi/jinstall.git/about/)
