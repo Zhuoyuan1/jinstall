@@ -1,109 +1,336 @@
 #!/usr/bin/python
 
 import argparse
+import collections
+import logging
 import os
 import subprocess
 import sys
+import urwid
 
-def error(*objs):
-    print(*objs, file=sys.stderr)
-
-def debug(*objs):
-    error(*objs)
-
-def rdir(dirpath, cmd):
-    # recurse directory
-    cmds = cmd.split(':')
-
-    rdirname = cmds[0]
-    erdirname = rdirname.replace("_", "\_")
-    rdirpath = os.path.join(dirpath, rdirname)
-
-    if not os.path.exists(rdirpath):
-        error("error: rdir in unexisting directory {}".
-                format(rdirpath))
-        return ""
-
-    ret = "group:{}..\n".format(erdirname)
-    ret += "exec::makemenu:{} -p {}\n".format(sys.argv[0], rdirpath)
-    ret += "show:::{}\n".format(rdirname)
-    ret += "remove:::{}\n".format(rdirname)
-    ret += "endgroup\n"
-
-    return ret
-
-def link(dirpath, cmd):
-    # link file
-    cmds = cmd.split(':')
-
-    srcname = cmds[0]
-    esrcname = srcname.replace("_", "\_")
-    srcpath = os.path.join(dirpath, cmds[0])
-
-    dstpath = os.path.expanduser(cmds[1])
-    dstdir = os.path.dirname(dstpath)
-
-    if not os.path.exists(srcpath):
-        error("error: link for unexisting file {}".
-                format(srcpath))
-        return ""
-
-    if os.path.exists(dstpath):
-        if (os.path.realpath(dstpath) == srcpath):
-            esrcname = '*' + esrcname
+#
+# Model
+#
+class Rdir:
+    def __init__(self, parent, dirpath, desc):
+        if not desc:
+            self.rdirname = os.path.basename(os.path.normpath(dirpath))
+            self.rdirpath = dirpath
         else:
-            esrcname = '%' + esrcname
+            self.rdirname = desc.split(':')[0]
+            self.rdirpath = os.path.join(dirpath, self.rdirname)
 
-    ret = "group:{}\n".format(esrcname)
-    ret += "exec::noclear:mkdir -p {}\n".format(dstdir)
-    ret += "exec::pause:ln -siv {} {}\n".format(srcpath, dstpath)
-    ret += "endgroup\n"
+        self.rdirs = collections.OrderedDict()
+        self.links = collections.OrderedDict()
 
-    return ret
+        self.parent = parent
+        if parent:
+            parent.add_rdir(self)
 
-commands = {
-        "rdir" : rdir,
-        "link" : link,
-        }
+    def get_parent(self):
+        return self.parent
+    def get_name(self):
+        return self.get_rdirname()
+    def get_rdirname(self):
+        return self.rdirname
+    def get_rdirpath(self):
+        return self.rdirname
+    def get_rdir_children(self):
+        return self.rdirs
+    def get_link_children(self):
+        return self.links
+    def add_rdir(self, rdir):
+        key = rdir.get_name()
+        if key in self.rdirs:
+            logging.error("Duplicate rdir entry '{}'".format(key))
+            return
+        self.rdirs[key] = rdir
+    def add_link(self, link):
+        key = link.get_name()
+        if not key in self.links:
+            self.links[key] = []
+        self.links[key].append(link)
 
-def generate_menu(dirpath):
-    dir = os.path.split(dirpath)[1]
-    menu = "menu:{0}:{0}\n".format(dir)
+    def __str__(self):
+        ret = "rdir:{}\n".format(self.rdirname)
+        for k, c in self.get_rdir_children().items():
+            ret += str(c)
+        for k, v in self.get_link_children().items():
+            for c in v:
+                ret += str(c)
+        return ret
 
-    install_filepath = os.path.join(dirpath, "Jinstall")
-    with open(install_filepath) as f:
-        for line in f:
-            cmd = line.strip().split(':', maxsplit=1)
-            menu += commands[cmd[0]](dirpath, cmd[1])
 
-    return menu
+class Link:
+    def __init__(self, parent, dirpath, desc):
+        desc = desc.split(':')
 
+        self.srcname = desc[0]
+        self.srcpath = os.path.join(dirpath, self.srcname)
+
+        self.dstname = desc[1]
+        self.dstpath = os.path.expanduser(self.dstname)
+        self.dstdir = os.path.dirname(self.dstpath)
+
+        self.installed = (os.path.exists(self.dstpath) and
+                os.path.realpath(self.dstpath) == self.srcpath)
+
+        self.parent = parent
+        parent.add_link(self)
+
+    def get_parent(self):
+        return parent
+    def get_name(self):
+        return self.get_dstname()
+    def get_srcname(self):
+        return self.srcname
+    def get_srcpath(self):
+        return self.srcpath
+    def get_dstname(self):
+        return self.dstname
+    def get_dstpath(self):
+        return self.dstpath
+    def get_dstdir(self):
+        return self.dstdir
+    def get_installed(self):
+        return self.installed
+    def __execute_cmd(self, cmd):
+        logging.debug("execute {}".format(cmd))
+        subprocess.call(cmd)
+    def perform_cmd(self):
+        if self.installed:
+            # remove
+            self.__execute_cmd(["rm", self.dstpath])
+        else:
+            # create
+            if not os.path.isdir(self.dstdir):
+                self.__execute_cmd(["mkdir", "-p", self.dstdir])
+            self.__execute_cmd(["ln", "-sf", self.srcpath, self.dstpath])
+    def __str__(self):
+        ret = "link:{}:{}:{}\n".format(self.srcname, self.dstname, self.installed)
+        return ret
+
+class JinstallModel:
+    def __init__(self, dirpath):
+        # build the root directory (no parent, no name)
+        self.root = Rdir(None, dirpath, None)
+        # scan from the root directory
+        self.scan_rdir(self.root, dirpath)
+        # records of commands executed when we quit
+        self.records = {}
+
+    def scan_rdir(self, root, dirpath):
+        # recursive scanning
+        install_filepath = os.path.join(dirpath, "Jinstall")
+        with open(install_filepath) as f:
+            for line in f:
+                (cmd, desc) = line.strip().split(':', maxsplit=1)
+                if (cmd == "rdir"):
+                    rdir = Rdir(root, dirpath, desc)
+                    self.scan_rdir(rdir, os.path.join(dirpath, rdir.get_name()))
+                elif (cmd == "link"):
+                    Link(root, dirpath, desc)
+                else:
+                    logging.error("unknow cmd {}".format(cmd))
+                    continue
+
+    def get_root(self):
+        return self.root
+
+    def record_cmd(self, link, new_state):
+        key = link.get_name()
+        logging.debug("record on {}".format(link))
+        if key in self.records:
+            if link.get_installed() == new_state:
+                logging.debug("delete {}".format(link))
+                del self.records[key]
+                return
+        self.records[key] = link
+
+    def perform_cmds(self):
+        for r in self.records.values():
+            r.perform_cmd()
+
+#
+# View
+#
+class Menu(urwid.WidgetPlaceholder):
+    def __init__(self, bg):
+        super(Menu, self).__init__(bg)
+
+    def open_menu(self, menu):
+        listbox = urwid.ListBox(urwid.SimpleFocusListWalker(menu))
+        self.original_widget = urwid.Overlay(urwid.LineBox(listbox),
+                self.original_widget,
+                align = "center", width = ("relative", 60),
+                valign = "middle", height = ("relative", 60))
+
+    def close_menu(self):
+        self.original_widget = self.original_widget[0]
+
+class JinstallView(urwid.WidgetWrap):
+    palette = [
+            # title, fg, bg, mono, fg_high, bg_high
+            ("head",    "light gray",   "black"),
+            ("foot",    "light gray",   "black"),
+            ("key",     "light cyan",   "black",    "underline"),
+            ]
+
+    footer_text = [
+            "  Navigation: ", ('key', "UP"), "/", ('key', "DOWN"),
+            "  Enter/Exit: ", ('key', "ENTER"), "/", ('key', "ESC"),
+            "  Install/Uninstall: ", ('key', "SPACE"),
+            "  Quit(Save/Cancel): ", ('key', "Q"), "/", ('key', "C"),
+            ]
+
+    def __init__(self, controller):
+        super(JinstallView, self).__init__(self.main_window())
+        self.controller = controller
+
+    def button_enter_dir(self, button, rdir):
+        self.controller.enter_dir(rdir)
+
+    def button_change_link(self, button, new_state, link):
+        if new_state == True:
+            self.controller.record_cmd(link, new_state)
+
+    def open_menu(self):
+        content = self.create_menu()
+        self.menu.open_menu(content)
+
+    def close_menu(self):
+        self.menu.close_menu()
+
+    def create_menu(self):
+        # create a menu from the current directory
+        current = self.controller.get_current()
+        body = []
+        body.extend([urwid.Text(current.get_name()), urwid.Divider()])
+        # rdirs
+        for name, rdir in current.get_rdir_children().items():
+            button = urwid.Button(rdir.get_name() + "...")
+            urwid.connect_signal(button, "click", self.button_enter_dir, rdir)
+            body.append(urwid.AttrMap(button, None, focus_map="reversed"))
+        # links
+        for name, links in current.get_link_children().items():
+            if len(links) == 1:
+                # checkbox
+                link = links[0]
+                button = urwid.CheckBox(link.get_name(), link.get_installed())
+                urwid.connect_signal(button, "change",
+                        self.button_change_link, link)
+                body.append(urwid.AttrMap(button, None, focus_map="reversed"))
+            else:
+                # radiobuttons
+                group = []
+                body.append(urwid.Text(name))
+                for link in links:
+                    button = urwid.RadioButton(group, link.get_srcname(),
+                            link.get_installed())
+                    urwid.connect_signal(button, "change",
+                            self.button_change_link, link)
+                    body.append(urwid.AttrMap(button, None, focus_map="reversed"))
+        return body
+
+    def main_window(self):
+        bg = urwid.AttrMap(urwid.SolidFill(" "), "background")
+        self.menu = Menu(bg)
+        self.header = urwid.Text("Jinstall", align="center")
+        self.footer = urwid.Text(self.footer_text)
+        w = urwid.Frame(
+                urwid.AttrMap(self.menu, "body"),
+                header = urwid.AttrMap(self.header, "head"),
+                footer = urwid.AttrMap(self.footer, "foot"))
+        return w
+
+    def keypress(self, size, key):
+        if (key == "esc"):
+            self.controller.exit_dir()
+        else:
+            return super(JinstallView, self).keypress(size, key)
+
+#
+# Controller
+#
+class JinstallController:
+    """
+    Controller between the model and the view
+    """
+    def __init__(self, cwd):
+        # build the model and the view
+        self.model = JinstallModel(cwd)
+        self.view = JinstallView(self)
+        # setup the root directory
+        self.current = self.model.get_root()
+        # update the view
+        self.view.open_menu()
+        self.save = False
+
+    def exit_program(self):
+        raise urwid.ExitMainLoop()
+
+    def record_cmd(self, cmd, new_state):
+        self.model.record_cmd(cmd, new_state)
+
+    def enter_dir(self, rdir):
+        self.current = rdir
+        self.view.open_menu()
+
+    def exit_dir(self):
+        self.current = self.current.get_parent()
+        if not self.current:
+            # no more parent node, we are at the root node
+            self.exit_program()
+        self.view.close_menu()
+
+    def get_current(self):
+        return self.current
+
+    def main(self):
+        self.loop = urwid.MainLoop(self.view, self.view.palette,
+                unhandled_input = self.unhandled_input)
+        self.loop.run()
+
+        if self.save:
+            self.model.perform_cmds()
+
+    def unhandled_input(self, k):
+        if k in ('q', 'Q'):
+            self.save = True
+        if k in ('c', 'C'):
+            self.save = False
+        self.exit_program()
+
+#
+# main
+#
 def main():
+    # arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("dir", nargs="?", default=os.getcwd(),
+    parser.add_argument("init_dir", nargs="?", default=os.getcwd(),
             help = "Start from a specific directory "
                    "instead of the current one")
-    parser.add_argument("-p", "--pdmenu",
-            help = "Only generate a string for feeding pdmenu",
-            action = "store_true")
+    parser.add_argument("-d", "--debug", type=int, choices=[0, 1, 2],
+            help="increase output debugging")
     args = parser.parse_args()
 
     # determine the Jinstall file
-    dirpath = os.path.realpath(args.dir)
+    init_dirpath = os.path.realpath(args.init_dir)
 
-    menu_content = generate_menu(dirpath)
-    if not args.pdmenu:
-        with subprocess.Popen(["pdmenu", "-"],
-                stdin = subprocess.PIPE,
-                universal_newlines = True) as pdmenu:
-            pdmenu.communicate(menu_content)
+    # debug
+    if args.debug is not None:
+        fmt = '%(levelname)s:%(message)s'
+        logfile = os.path.join(init_dirpath, "jinstall.log")
+        logging.basicConfig(format=fmt, filename=logfile, filemode="w")
+        logger = logging.getLogger()
+        if args.debug == 0:
+            logger.setLevel(logging.WARN)
+        elif args.debug == 1:
+            logger.setLevel(logging.INFO)
+        else:
+            logger.setLevel(logging.DEBUG)
 
-    else:
-        print(menu_content)
+    JinstallController(init_dirpath).main()
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        error("An error occurred: {!s}".format(e))
-        sys.exit(1)
+    main()
