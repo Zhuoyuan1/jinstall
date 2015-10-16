@@ -10,7 +10,7 @@ setup(
         author='Joël Porquet',
         author_email='joel@porquet.org',
         url='https://joel.porquet.org/wiki/hacking/jinstall/',
-        packages=['jinstall'],
+        scripts=['jinstall'],
         license='GPLv3'
         )
 
