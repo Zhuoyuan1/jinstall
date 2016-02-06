@@ -62,6 +62,17 @@ There can be multiple `link` rules to the same link target. In this case,
 Jinstall will display radiobuttons for choosing which version you want to
 install.
 
+### hlink
+
+The rule `hlink` informs **jinstall** to create a hard link between a
+specific file in the current directory and an absolute target.
+
+    hlink:<relative_local_filepath>:<absolute_link_target>
+
+There can be multiple `hlink` rules to the same link target. In this case,
+Jinstall will display radiobuttons for choosing which version you want to
+install.
+
 ## Example
 
 Let's say your *dotfile* folder contains two subfolders, for bash and vim
