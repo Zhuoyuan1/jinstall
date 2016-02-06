@@ -62,7 +62,7 @@ class Rdir:
 
 
 class Link:
-    def __init__(self, parent, dirpath, desc):
+    def __init__(self, parent, dirpath, desc, symlink):
         desc = desc.split(':')
 
         self.srcname = desc[0]
@@ -71,6 +71,8 @@ class Link:
         self.dstname = desc[1]
         self.dstpath = os.path.expanduser(self.dstname)
         self.dstdir = os.path.dirname(self.dstpath)
+
+        self.symlink = symlink
 
         self.installed = (os.path.exists(self.dstpath) and
                 os.path.realpath(self.dstpath) == self.srcpath)
@@ -105,7 +107,10 @@ class Link:
             # create
             if not os.path.isdir(self.dstdir):
                 self.__execute_cmd(["mkdir", "-p", self.dstdir])
-            self.__execute_cmd(["ln", "-sf", self.srcpath, self.dstpath])
+            if self.symlink:
+                self.__execute_cmd(["ln", "-sf", self.srcpath, self.dstpath])
+            else:
+                self.__execute_cmd(["ln", "-f", self.srcpath, self.dstpath])
     def __str__(self):
         ret = "link:{}:{}:{}\n".format(self.srcname, self.dstname, self.installed)
         return ret
@@ -129,7 +134,9 @@ class JinstallModel:
                     rdir = Rdir(root, dirpath, desc)
                     self.scan_rdir(rdir, os.path.join(dirpath, rdir.get_name()))
                 elif (cmd == "link"):
-                    Link(root, dirpath, desc)
+                    Link(root, dirpath, desc, True)
+                elif (cmd == "hlink"):
+                    Link(root, dirpath, desc, False)
                 else:
                     logging.error("unknow cmd {}".format(cmd))
                     continue
