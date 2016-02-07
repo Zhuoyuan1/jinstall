@@ -33,7 +33,7 @@ of a directory as argument: `jinstall [path]`
 
     optional arguments:
       -h, --help    show this help message and exit
-      -d {0,1,2}, --debug {0,1,2}  increase output debugging
+      -d, --debug   Increase debug level for logging
 
 Once in the menus, you can move with the up and down arrows, go in a submenu
 using [enter] or go back from a submenu using [escape].

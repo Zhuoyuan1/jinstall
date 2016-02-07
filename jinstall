@@ -317,15 +317,15 @@ def main():
     parser.add_argument("init_dir", nargs="?", default=os.getcwd(),
             help = "Start from a specific directory "
                    "instead of the current one")
-    parser.add_argument("-d", "--debug", type=int, choices=[0, 1, 2],
-            help="increase output debugging")
+    parser.add_argument("-d", "--debug", action="count",
+            help="increase debug level for logging")
     args = parser.parse_args()
 
     # determine the Jinstall file
     init_dirpath = os.path.realpath(args.init_dir)
 
     # debug
-    if args.debug is not None:
+    if args.debug != 0:
         fmt = '%(levelname)s:%(message)s'
         logfile = os.path.join(init_dirpath, "jinstall.log")
         logging.basicConfig(format=fmt, filename=logfile, filemode="w")
