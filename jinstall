@@ -21,7 +21,7 @@ class Rdir:
             self.rdirpath = os.path.join(dirpath, self.rdirname)
 
         self.rdirs = collections.OrderedDict()
-        self.links = collections.OrderedDict()
+        self.files = collections.OrderedDict()
 
         self.parent = parent
         if parent:
@@ -37,31 +37,31 @@ class Rdir:
         return self.rdirname
     def get_rdir_children(self):
         return self.rdirs
-    def get_link_children(self):
-        return self.links
+    def get_file_children(self):
+        return self.files
     def add_rdir(self, rdir):
         key = rdir.get_name()
         if key in self.rdirs:
             logging.error("Duplicate rdir entry '{}'".format(key))
             return
         self.rdirs[key] = rdir
-    def add_link(self, link):
-        key = link.get_name()
-        if not key in self.links:
-            self.links[key] = []
-        self.links[key].append(link)
+    def add_file(self, file):
+        key = file.get_name()
+        if not key in self.files:
+            self.files[key] = []
+        self.files[key].append(file)
 
     def __str__(self):
         ret = "rdir:{}\n".format(self.rdirname)
         for k, c in self.get_rdir_children().items():
             ret += str(c)
-        for k, v in self.get_link_children().items():
+        for k, v in self.get_file_children().items():
             for c in v:
                 ret += str(c)
         return ret
 
 
-class Link:
+class File:
     def __init__(self, parent, dirpath, desc, symlink):
         desc = desc.split(':')
 
@@ -78,7 +78,7 @@ class Link:
                 os.path.realpath(self.dstpath) == self.srcpath)
 
         self.parent = parent
-        parent.add_link(self)
+        parent.add_file(self)
 
     def get_parent(self):
         return parent
@@ -134,9 +134,9 @@ class JinstallModel:
                     rdir = Rdir(root, dirpath, desc)
                     self.scan_rdir(rdir, os.path.join(dirpath, rdir.get_name()))
                 elif (cmd == "link"):
-                    Link(root, dirpath, desc, True)
+                    File(root, dirpath, desc, True)
                 elif (cmd == "hlink"):
-                    Link(root, dirpath, desc, False)
+                    File(root, dirpath, desc, False)
                 else:
                     logging.error("unknow cmd {}".format(cmd))
                     continue
@@ -144,15 +144,15 @@ class JinstallModel:
     def get_root(self):
         return self.root
 
-    def record_cmd(self, link, new_state):
-        key = link.get_name()
-        logging.debug("record on {}".format(link))
+    def record_cmd(self, file, new_state):
+        key = file.get_name()
+        logging.debug("record on {}".format(file))
         if key in self.records:
-            if link.get_installed() == new_state:
-                logging.debug("delete {}".format(link))
+            if file.get_installed() == new_state:
+                logging.debug("delete {}".format(file))
                 del self.records[key]
                 return
-        self.records[key] = link
+        self.records[key] = file
 
     def perform_cmds(self):
         for r in self.records.values():
@@ -197,9 +197,9 @@ class JinstallView(urwid.WidgetWrap):
     def button_enter_dir(self, button, rdir):
         self.controller.enter_dir(rdir)
 
-    def button_change_link(self, button, new_state, link):
+    def button_change_file(self, button, new_state, file):
         if new_state == True:
-            self.controller.record_cmd(link, new_state)
+            self.controller.record_cmd(file, new_state)
 
     def open_menu(self):
         content = self.create_menu()
@@ -218,24 +218,24 @@ class JinstallView(urwid.WidgetWrap):
             button = urwid.Button(rdir.get_name() + "...")
             urwid.connect_signal(button, "click", self.button_enter_dir, rdir)
             body.append(urwid.AttrMap(button, None, focus_map="reversed"))
-        # links
-        for name, links in current.get_link_children().items():
-            if len(links) == 1:
+        # file
+        for name, files in current.get_file_children().items():
+            if len(files) == 1:
                 # checkbox
-                link = links[0]
-                button = urwid.CheckBox(link.get_name(), link.get_installed())
+                file = files[0]
+                button = urwid.CheckBox(file.get_name(), file.get_installed())
                 urwid.connect_signal(button, "change",
-                        self.button_change_link, link)
+                        self.button_change_file, file)
                 body.append(urwid.AttrMap(button, None, focus_map="reversed"))
             else:
                 # radiobuttons
                 group = []
                 body.append(urwid.Text(name))
-                for link in links:
-                    button = urwid.RadioButton(group, link.get_srcname(),
-                            link.get_installed())
+                for file in files:
+                    button = urwid.RadioButton(group, file.get_srcname(),
+                            file.get_installed())
                     urwid.connect_signal(button, "change",
-                            self.button_change_link, link)
+                            self.button_change_file, file)
                     body.append(urwid.AttrMap(button, None, focus_map="reversed"))
         return body
 
