@@ -2,8 +2,8 @@
 
 ## What it jinstall?
 
-**jinstall** is an automated terminal-based file installer. It is the perfect
-tool for easily installing your *dotfiles*!
+**jinstall** is an automated terminal-based file installer. It is, for example,
+the perfect tool for easily installing your *dotfiles*!
 
 From a repository of files (typically put under version control) and according
 to rules (described in `Jinstall` files), **jinstall** creates links to those
@@ -29,7 +29,7 @@ of a directory as argument: `jinstall [path]`
     usage: jinstall [-h] [-d level] [dir]
 
     positional arguments:
-      dir           Start from a specific directory instead of the current one
+      dir           start from a specific directory instead of the current one
 
     optional arguments:
       -h, --help    show this help message and exit

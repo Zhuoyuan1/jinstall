@@ -315,8 +315,7 @@ def main():
     # arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("init_dir", nargs="?", default=os.getcwd(),
-            help = "Start from a specific directory "
-                   "instead of the current one")
+            help="start from a specific directory instead of the current one")
     parser.add_argument("-d", "--debug", action="count",
             help="increase debug level for logging")
     args = parser.parse_args()
