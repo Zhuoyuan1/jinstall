@@ -62,7 +62,7 @@ class Rdir:
 
 
 class File:
-    def __init__(self, parent, dirpath, desc, symlink):
+    def __init__(self, parent, dirpath, desc):
         desc = desc.split(':')
 
         self.srcname = desc[0]
@@ -71,11 +71,6 @@ class File:
         self.dstname = desc[1]
         self.dstpath = os.path.expanduser(self.dstname)
         self.dstdir = os.path.dirname(self.dstpath)
-
-        self.symlink = symlink
-
-        self.installed = (os.path.exists(self.dstpath) and
-                os.path.realpath(self.dstpath) == self.srcpath)
 
         self.parent = parent
         parent.add_file(self)
@@ -96,24 +91,54 @@ class File:
         return self.dstdir
     def get_installed(self):
         return self.installed
-    def __execute_cmd(self, cmd):
-        logging.debug("execute {}".format(cmd))
-        subprocess.call(cmd)
+    def file_cmd(self):
+        raise NotImplementedError
     def perform_cmd(self):
         if self.installed:
             # remove
-            self.__execute_cmd(["rm", self.dstpath])
+            logging.debug("remove {}".format(self.dstpath))
+            os.remove(self.dstpath)
         else:
             # create
             if not os.path.isdir(self.dstdir):
-                self.__execute_cmd(["mkdir", "-p", self.dstdir])
-            if self.symlink:
-                self.__execute_cmd(["ln", "-sf", self.srcpath, self.dstpath])
-            else:
-                self.__execute_cmd(["ln", "-f", self.srcpath, self.dstpath])
+                os.makedirs(self.dstdir, mode=0o755, exist_ok=True)
+            self.file_cmd()
+    def __type__(self):
+        raise NotImplementedError
     def __str__(self):
-        ret = "link:{}:{}:{}\n".format(self.srcname, self.dstname, self.installed)
+        ret = "{}:{}:{}:{}\n".format(self.__type__(), self.srcname,
+                self.dstname, self.installed)
         return ret
+
+class SymLink(File):
+    def __init__(self, parent, dirpath, desc):
+        super(SymLink, self).__init__(parent, dirpath, desc)
+
+        self.installed = (os.path.exists(self.dstpath) and
+                os.path.islink(self.dstpath) and
+                os.path.samefile(self.dstpath, self.srcpath))
+
+    def file_cmd(self):
+        logging.debug("symlink {} to {}".format(self.dstpath, self.srcpath))
+        os.symlink(self.srcpath, self.dstpath)
+
+    def __type__(self):
+        return "symlink"
+
+class HardLink(File):
+    def __init__(self, parent, dirpath, desc):
+        super(HardLink, self).__init__(parent, dirpath, desc)
+
+        self.installed = (os.path.exists(self.dstpath) and
+                os.path.samefile(self.dstpath, self.srcpath) and
+                not os.path.islink(self.dstpath))
+
+    def file_cmd(self):
+        logging.debug("hardlink {} to {}".format(self.dstpath, self.srcpath))
+        os.link(self.srcpath, self.dstpath)
+
+    def __type__(self):
+        return "hardlink"
 
 class JinstallModel:
     def __init__(self, dirpath):
@@ -133,10 +158,10 @@ class JinstallModel:
                 if (cmd == "rdir"):
                     rdir = Rdir(root, dirpath, desc)
                     self.scan_rdir(rdir, os.path.join(dirpath, rdir.get_name()))
-                elif (cmd == "link"):
-                    File(root, dirpath, desc, True)
+                elif (cmd == "slink"):
+                    SymLink(root, dirpath, desc)
                 elif (cmd == "hlink"):
-                    File(root, dirpath, desc, False)
+                    HardLink(root, dirpath, desc)
                 else:
                     logging.error("unknow cmd {}".format(cmd))
                     continue

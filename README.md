@@ -6,8 +6,8 @@
 the perfect tool for easily installing your *dotfiles*!
 
 From a repository of files (typically put under version control) and according
-to rules (described in `Jinstall` files), **jinstall** creates links to those
-files where you want them to be.
+to rules (described in `Jinstall` files), **jinstall** creates symbolic links or
+hard links of those files where you want them to be.
 
 **jinstall** was primarily designed to automate the process of installing
 *dotfiles*, but it can be used for anything that requires installing files.
@@ -42,7 +42,8 @@ For installing or uninstalling a specific file, press [space].
 
 ## Jinstall file syntax
 
-As of today, a `Jinstall` file contains two types of rules: `rdir` and `link`.
+As of today, a `Jinstall` file contains several types of rules: `rdir`, `slink`
+and `hlink`.
 
 ### rdir
 
@@ -51,14 +52,14 @@ for the specified directory. Such directory must contain a `Jinstall` file.
 
     rdir:<directory_path>
 
-### link
+### slink
 
-The rule `link` informs **jinstall** to create a symbolic link between a
+The rule `slink` informs **jinstall** to create a symbolic link between a
 specific file in the current directory and an absolute target.
 
-    link:<relative_local_filepath>:<absolute_link_target>
+    slink:<relative_local_filepath>:<absolute_link_target>
 
-There can be multiple `link` rules to the same link target. In this case,
+There can be multiple `slink` rules to the same link target. In this case,
 Jinstall will display radiobuttons for choosing which version you want to
 install.
 
@@ -93,14 +94,14 @@ Create two `Jinstall` in both subfolders, specifying the links that have to be
 created:
 
     $ cat bash/Jinstall
-    link:bash_aliases:~/.bash_aliases
-    link:bash_profile:~/.bash_profile
-    link:bashrc:~/.bashrc
+    slink:bash_aliases:~/.bash_aliases
+    slink:bash_profile:~/.bash_profile
+    slink:bashrc:~/.bashrc
 
     $ cat vim/Jinstall
-    link:colors:~/.vim/colors
-    link:gvimrc:~/.gvimrc
-    link:vimrc:~/.vimrc
+    slink:colors:~/.vim/colors
+    slink:gvimrc:~/.gvimrc
+    slink:vimrc:~/.vimrc
 
 At the root of your *dotfile* folder, create a third `Jinstall` file to inform
 **jinstall** about the two subfolders:
