@@ -2,9 +2,10 @@
 
 import argparse
 import collections
+import filecmp
 import logging
 import os
-import subprocess
+import shutil
 import sys
 import urwid
 
@@ -140,6 +141,26 @@ class HardLink(File):
     def __type__(self):
         return "hardlink"
 
+class Copy(File):
+    def __init__(self, parent, dirpath, desc):
+        super(Copy, self).__init__(parent, dirpath, desc)
+
+        self.installed = (os.path.exists(self.dstpath) and
+                filecmp.cmp(self.dstpath, self.srcpath))
+
+    def get_name(self):
+        name = super(Copy, self).get_name()
+        if not self.installed and os.path.exists(self.dstpath):
+            name = name + " (file exists but content is different)"
+        return name
+
+    def file_cmd(self):
+        logging.debug("copy {} to {}".format(self.srcpath, self.dstpath))
+        shutil.copyfile(self.srcpath, self.dstpath)
+
+    def __type__(self):
+        return "copy"
+
 class JinstallModel:
     def __init__(self, dirpath):
         # build the root directory (no parent, no name)
@@ -162,6 +183,8 @@ class JinstallModel:
                     SymLink(root, dirpath, desc)
                 elif (cmd == "hlink"):
                     HardLink(root, dirpath, desc)
+                elif (cmd == "copy"):
+                    Copy(root, dirpath, desc)
                 else:
                     logging.error("unknow cmd {}".format(cmd))
                     continue

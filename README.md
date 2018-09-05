@@ -7,7 +7,7 @@ the perfect tool for easily installing your *dotfiles*!
 
 From a repository of files (typically put under version control) and according
 to rules (described in `Jinstall` files), **jinstall** creates symbolic links or
-hard links of those files where you want them to be.
+hard links or copy of those files where you want them to be.
 
 **jinstall** was primarily designed to automate the process of installing
 *dotfiles*, but it can be used for anything that requires installing files.
@@ -42,8 +42,8 @@ For installing or uninstalling a specific file, press [space].
 
 ## Jinstall file syntax
 
-As of today, a `Jinstall` file contains several types of rules: `rdir`, `slink`
-and `hlink`.
+As of today, a `Jinstall` file contains several types of rules: `rdir`, `slink`,
+`hlink`, and `copy`.
 
 ### rdir
 
@@ -71,6 +71,17 @@ specific file in the current directory and an absolute target.
     hlink:<relative_local_filepath>:<absolute_link_target>
 
 There can be multiple `hlink` rules to the same link target. In this case,
+Jinstall will display radiobuttons for choosing which version you want to
+install.
+
+### copy
+
+The rule `copy` informs **jinstall** to create a copy of a specific file in the
+current directory and to a destination file.
+
+    copy:<relative_local_filepath>:<destination_file>
+
+There can be multiple `copy` rules to the same link target. In this case,
 Jinstall will display radiobuttons for choosing which version you want to
 install.
 
